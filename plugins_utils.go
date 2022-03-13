@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -54,8 +53,6 @@ func getLocalPackages() (PluginInfos, error) {
 	for _, file := range dir {
 		if file.IsDir() {
 			plugins.isPluginFolder("./plugins/PluginManager/pkg/" + file.Name() + "/")
-		} else {
-			fmt.Println(file.Name())
 		}
 	}
 	return plugins, err

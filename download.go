@@ -84,22 +84,22 @@ func UnzipFiles(src, dest string) error {
 		}
 		defer rc.Close()
 
-		fpath := filepath.Join(dest, f.Name)
+		path := filepath.Join(dest, f.Name)
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(fpath, f.Mode())
+			os.MkdirAll(path, f.Mode())
 		} else {
-			var fdir string
-			if lastIndex := strings.LastIndex(fpath, string(os.PathSeparator)); lastIndex > -1 {
-				fdir = fpath[:lastIndex]
+			var dir string
+			if lastIndex := strings.LastIndex(path, string(os.PathSeparator)); lastIndex > -1 {
+				dir = path[:lastIndex]
 			}
 
-			err = os.MkdirAll(fdir, f.Mode())
+			err = os.MkdirAll(dir, f.Mode())
 			if err != nil {
 				log.Fatal(err)
 				return err
 			}
 			f, err := os.OpenFile(
-				fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+				path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 			if err != nil {
 				return err
 			}
