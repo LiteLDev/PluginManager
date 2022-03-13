@@ -76,7 +76,17 @@ func UnzipFiles(src, dest string) error {
 		return err
 	}
 	defer r.Close()
-
+	hasManifest := false
+	for _, f := range r.File {
+		_, filename := filepath.Split(f.Name)
+		if !f.FileInfo().IsDir() && filename == "manifest.json" {
+			hasManifest = true
+			break
+		}
+	}
+	if !hasManifest {
+		return fmt.Errorf("no manifest.json found in zip file")
+	}
 	for _, f := range r.File {
 		rc, err := f.Open()
 		if err != nil {

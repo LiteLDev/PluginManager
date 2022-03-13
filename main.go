@@ -96,8 +96,8 @@ func main() {
 					downloadUrl := getDownloadUrl(c.String("url"), "https://goproxy.cn", version.Version)
 					fileName := fmt.Sprintf("plugins/PluginManager/pkg/%s-%s.zip", file, version.Version)
 					DownloadFile(fileName, downloadUrl)
-					UnzipFiles(fileName, "plugins/PluginManager/pkg")
-					return nil
+					err = UnzipFiles(fileName, "plugins/PluginManager/pkg")
+					return err
 				},
 			},
 		},
