@@ -27,7 +27,12 @@ func (w *PluginInfos) isPluginFolder(path string) {
 				_, file := filepath.Split(path)
 				index := strings.LastIndex(file, "@")
 				if index != -1 {
-					Plugin.Name = file[:index]
+					rel, err := filepath.Rel("./plugins/PluginManager/pkg", path)
+					if err != nil {
+						return
+					}
+					rel, _ = filepath.Split(rel)
+					Plugin.Name = filepath.Join(rel, file[:index])
 					Plugin.Version = file[index+1:]
 					Plugin.Path = path
 					*w = append(*w, Plugin)
