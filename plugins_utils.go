@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"golang.org/x/mod/modfile"
 	"io"
 	"io/ioutil"
@@ -23,7 +24,7 @@ type PluginManifest struct {
 type PluginInfo struct {
 	Name    string
 	Path    string
-	Version string
+	Version *version.Version
 
 	Manifest   *PluginManifest
 	ModuleInfo *modfile.File
@@ -44,7 +45,11 @@ func getPluginInfo(path string) (Plugin PluginInfo, err error) {
 	}
 	rel, _ = filepath.Split(rel)
 	Plugin.Name = filepath.Join(rel, mainName[:index])
-	Plugin.Version = mainName[index+1:]
+	ver, err := version.NewVersion(mainName[index+1:])
+	if err != nil {
+		return
+	}
+	Plugin.Version = ver
 	Plugin.Path = path
 
 	manifestFileReader, err := os.Open(filepath.Join(path, "manifest.json"))

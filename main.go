@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"github.com/urfave/cli/v2"
 	"log"
 	"os"
@@ -218,9 +219,14 @@ console.log(system.Cmd("cmd", "/C", "del", "test.txt"));
 					if err != nil {
 						return err
 					}
+
+					ver, err := version.NewVersion(c.String("version"))
+					if err != nil && c.String("version") != "@all" {
+						return err
+					}
 					for _, v := range packages {
 						if v.Name == c.String("name") {
-							if c.String("version") == "@all" || v.Version == c.String("version") {
+							if c.String("version") == "@all" || v.Version.Equal(ver) {
 								log.Printf("Removing %s[%s]\n", v.Name, v.Version)
 								err := os.RemoveAll(filepath.Join(".", v.Path))
 								if err != nil {
