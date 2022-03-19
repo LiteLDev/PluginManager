@@ -7,9 +7,9 @@ import (
 )
 
 func initDirs() {
-	os.MkdirAll("./plugins/PluginManager", os.ModePerm)
-	os.MkdirAll("./plugins/PluginManager/pkg", os.ModePerm)
-	os.MkdirAll("./plugins/PluginManager/cache", os.ModePerm)
+	os.MkdirAll(PluginManagerRoot, os.ModePerm)
+	os.MkdirAll(filepath.Join(PluginManagerRoot, "pkg"), os.ModePerm)
+	os.MkdirAll(filepath.Join(PluginManagerRoot, "cache"), os.ModePerm)
 }
 func findEmptyFolder(path string) (err error) {
 	dir, err := ioutil.ReadDir(path)

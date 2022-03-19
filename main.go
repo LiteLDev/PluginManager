@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"log"
@@ -8,15 +9,79 @@ import (
 	"path/filepath"
 )
 
+type Config struct {
+	Source string `json:"source"`
+}
+
+var GlobalConfig Config
+
+func init() {
+	log.SetFlags(log.Ltime | log.Lshortfile)
+	initDirs()
+
+	configFilePath := filepath.Join(PluginManagerRoot, "PluginManager.json")
+
+	_, err := os.Stat(configFilePath)
+	if err != nil {
+		GlobalConfig.Source = DefaultDownloadSource
+		configData, err := json.MarshalIndent(GlobalConfig, "", "  ")
+		if err != nil {
+			log.Fatalln("WriteConfig", err)
+		}
+		file, err := os.Create(configFilePath)
+		if err != nil {
+			log.Fatalln("WriteConfig", err)
+		}
+		defer file.Close()
+		_, err = file.Write(configData)
+		if err != nil {
+			log.Fatalln("WriteConfig", err)
+		}
+
+	} else {
+		data, err := os.Open(configFilePath)
+		if err != nil {
+			log.Fatalln("LoadConfig", err)
+		}
+		err = json.NewDecoder(data).Decode(&GlobalConfig)
+		if err != nil {
+			log.Fatalln("LoadConfig", err)
+		}
+	}
+}
+
 func main() {
 	app := &cli.App{
 		Name:  "BDSLiteLoader Plugin Manager",
 		Usage: "BDSLiteLoader Plugin Manager that helps you download third-party plugins",
 		Commands: []*cli.Command{
+
+			{
+				Name:  "test",
+				Usage: "test",
+				Action: func(c *cli.Context) error {
+					vm := newVmInstance()
+					_, err := vm.Run(`
+filesystem.Mkdir("./test");
+filesystem.Write("./test/test.txt", "test");
+console.log(filesystem.Exists("./test/test.txt"));
+console.log(filesystem.Read("./test/test.txt"));
+filesystem.Append("./test/test.txt", "test2");
+console.log(filesystem.Read("./test/test.txt"));
+filesystem.Delete("./test");
+console.log(system.Cmd("cmd", "/C", "pause"));
+filesystem.Create("./test.txt");
+console.log(system.Cmd("cmd", "/C", "del", "test.txt"));
+`)
+					return err
+				},
+			},
+
 			{
 				Name:  "list",
 				Usage: "list packages or versions",
 				Subcommands: []*cli.Command{
+
 					{
 						Name:    "remote",
 						Aliases: []string{"r"},
@@ -31,7 +96,7 @@ func main() {
 							},
 						},
 						Action: func(c *cli.Context) error {
-							versions, err := getModuleVersionList(c.String("url"), "https://goproxy.cn")
+							versions, err := getModuleVersionList(c.String("url"), GlobalConfig.Source)
 							if err != nil {
 								return err
 							}
@@ -47,12 +112,17 @@ func main() {
 						Usage:   "get local plugin list",
 						Action: func(c *cli.Context) error {
 
-							plugins, _ := getLocalPackages()
+							plugins, err := getLocalPackages()
+							if err != nil {
+								return err
+							}
 							for _, p := range plugins {
 								log.Println("Name\t", p.Name)
 								log.Println("Version\t", p.Version)
 								log.Println("Path\t", p.Path)
+								log.Printf("Manifest\t%+v", p.Manifest)
 								log.Print("\n")
+
 							}
 							return nil
 						},
@@ -81,17 +151,15 @@ func main() {
 				Action: func(c *cli.Context) error {
 					var err error
 
-					initDirs()
-
 					version := ModuleVersionInfo{}
 					if c.String("version") == "@latest" {
-						version, err = getModuleVersionLatest(c.String("url"), "https://goproxy.cn")
+						version, err = getModuleVersionLatest(c.String("url"), GlobalConfig.Source)
 						if err != nil {
 							log.Fatalf("failed to get latest version: %v", err)
 							return nil
 						}
 					} else {
-						version, err = getModuleVersionInfo(c.String("url"), "https://goproxy.cn", c.String("version"))
+						version, err = getModuleVersionInfo(c.String("url"), GlobalConfig.Source, c.String("version"))
 						if err != nil {
 							log.Fatalf("failed to get version info for %s: %v", c.String("version"), err)
 							return nil
@@ -100,10 +168,10 @@ func main() {
 					_, file := filepath.Split(c.String("url"))
 
 					log.Printf("downloading %s@%s [%v]", version.Version, c.String("url"), version.Time)
-					downloadUrl := getDownloadUrl(c.String("url"), "https://goproxy.cn", version.Version)
-					fileName := fmt.Sprintf("plugins/PluginManager/cache/%s-%s.zip", file, version.Version)
+					downloadUrl := getDownloadUrl(c.String("url"), GlobalConfig.Source, version.Version)
+					fileName := filepath.Join(PluginManagerRoot, "cache", fmt.Sprintf("%s-%s.zip", file, version.Version))
 					DownloadFile(fileName, downloadUrl)
-					err = UnzipFiles(fileName, "plugins/PluginManager/pkg")
+					err = UnzipFiles(fileName, filepath.Join(PluginManagerRoot, "pkg"))
 					return err
 				},
 			},
@@ -138,7 +206,7 @@ func main() {
 							}
 						}
 					}
-					err = removeEmptyFolders("./plugins/PluginManager/pkg")
+					err = removeEmptyFolders(filepath.Join(PluginManagerRoot, "pkg"))
 					return err
 				},
 			},
