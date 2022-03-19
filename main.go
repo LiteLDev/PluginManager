@@ -120,7 +120,12 @@ console.log(system.Cmd("cmd", "/C", "del", "test.txt"));
 								log.Println("Name\t", p.Name)
 								log.Println("Version\t", p.Version)
 								log.Println("Path\t", p.Path)
-								log.Printf("Manifest\t%+v", p.Manifest)
+								log.Printf("Manifest\t%+v", *p.Manifest)
+								log.Println("Require")
+								for k, v := range p.ModuleInfo.Require {
+									log.Printf("\t[%d] %s Indirect:%v", k, v.Mod, v.Indirect)
+								}
+
 								log.Print("\n")
 
 							}
@@ -152,6 +157,7 @@ console.log(system.Cmd("cmd", "/C", "del", "test.txt"));
 					var err error
 
 					version := ModuleVersionInfo{}
+
 					if c.String("version") == "@latest" {
 						version, err = getModuleVersionLatest(c.String("url"), GlobalConfig.Source)
 						if err != nil {
@@ -171,7 +177,20 @@ console.log(system.Cmd("cmd", "/C", "del", "test.txt"));
 					downloadUrl := getDownloadUrl(c.String("url"), GlobalConfig.Source, version.Version)
 					fileName := filepath.Join(PluginManagerRoot, "cache", fmt.Sprintf("%s-%s.zip", file, version.Version))
 					DownloadFile(fileName, downloadUrl)
-					err = UnzipFiles(fileName, filepath.Join(PluginManagerRoot, "pkg"))
+					path, err := UnzipModule(fileName, filepath.Join(PluginManagerRoot, "pkg"))
+					p, err := getPluginInfo(filepath.Join(PluginManagerRoot, "pkg", path))
+					if err != nil {
+						return err
+					}
+					log.Println("Name\t", p.Name)
+					log.Println("Version\t", p.Version)
+					log.Println("Path\t", p.Path)
+					log.Printf("Manifest\t%+v", *p.Manifest)
+					log.Println("Require")
+					for k, v := range p.ModuleInfo.Require {
+						log.Printf("\t[%d] %s Indirect:%v", k, v.Mod, v.Indirect)
+					}
+					log.Print("\n")
 					return err
 				},
 			},
@@ -202,7 +221,11 @@ console.log(system.Cmd("cmd", "/C", "del", "test.txt"));
 					for _, v := range packages {
 						if v.Name == c.String("name") {
 							if c.String("version") == "@all" || v.Version == c.String("version") {
-								os.RemoveAll(v.Path)
+								log.Printf("Removing %s[%s]\n", v.Name, v.Version)
+								err := os.RemoveAll(filepath.Join(".", v.Path))
+								if err != nil {
+									return err
+								}
 							}
 						}
 					}

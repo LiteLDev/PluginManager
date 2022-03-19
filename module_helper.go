@@ -1,10 +1,14 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -14,7 +18,7 @@ type ModuleVersionInfo struct {
 	Time    time.Time // commit time
 }
 
-func parseUrl(url string) (ret string) {
+func escapeModuleUrl(url string) (ret string) {
 	for _, v := range url {
 		if v > 'A' && v < 'Z' {
 			ret += "!"
@@ -27,11 +31,11 @@ func parseUrl(url string) (ret string) {
 }
 
 func getDownloadUrl(modulePath, goproxyUrl, versionStr string) string {
-	return fmt.Sprintf("%s/%s/@v/%s.zip", goproxyUrl, parseUrl(modulePath), versionStr)
+	return fmt.Sprintf("%s/%s/@v/%s.zip", goproxyUrl, escapeModuleUrl(modulePath), versionStr)
 }
 
 func getModuleVersionInfo(modulePath, goproxyUrl, versionStr string) (ret ModuleVersionInfo, err error) {
-	url := fmt.Sprintf("%s/%s/@v/%s.info", goproxyUrl, parseUrl(modulePath), versionStr)
+	url := fmt.Sprintf("%s/%s/@v/%s.info", goproxyUrl, escapeModuleUrl(modulePath), versionStr)
 	resp, err := http.Get(url)
 	if err != nil {
 		return
@@ -46,7 +50,7 @@ func getModuleVersionInfo(modulePath, goproxyUrl, versionStr string) (ret Module
 }
 
 func getModuleVersionLatest(modulePath string, goproxyUrl string) (ver ModuleVersionInfo, err error) {
-	realUrl := fmt.Sprintf("%s/%s/@latest", goproxyUrl, parseUrl(modulePath))
+	realUrl := fmt.Sprintf("%s/%s/@latest", goproxyUrl, escapeModuleUrl(modulePath))
 	resp, err := http.Get(realUrl)
 	if err != nil {
 		return
@@ -61,7 +65,7 @@ func getModuleVersionLatest(modulePath string, goproxyUrl string) (ver ModuleVer
 }
 
 func getModuleVersionList(modulePath string, goproxyUrl string) (list []ModuleVersionInfo, err error) {
-	realUrl := fmt.Sprintf("%s/%s/@v/list", goproxyUrl, parseUrl(modulePath))
+	realUrl := fmt.Sprintf("%s/%s/@v/list", goproxyUrl, escapeModuleUrl(modulePath))
 	resp, err := http.Get(realUrl)
 	if err != nil {
 		return nil, err
@@ -85,4 +89,60 @@ func getModuleVersionList(modulePath string, goproxyUrl string) (list []ModuleVe
 		}
 	}
 	return
+}
+func UnzipModule(src, dest string) (string, error) {
+	var path string
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	hasManifest := false
+
+	for _, f := range r.File {
+		var filename string
+		path, filename = filepath.Split(f.Name)
+		if !f.FileInfo().IsDir() && filename == "manifest.json" {
+			hasManifest = true
+			break
+		}
+	}
+	if !hasManifest {
+		return "", fmt.Errorf("no manifest.json found in zip file")
+	}
+	for _, f := range r.File {
+		rc, err := f.Open()
+		if err != nil {
+			return "", err
+		}
+		defer rc.Close()
+
+		path := filepath.Join(dest, f.Name)
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(path, f.Mode())
+		} else {
+			var dir string
+			if lastIndex := strings.LastIndex(path, string(os.PathSeparator)); lastIndex > -1 {
+				dir = path[:lastIndex]
+			}
+
+			err = os.MkdirAll(dir, f.Mode())
+			if err != nil {
+				log.Fatal(err)
+				return "", err
+			}
+			f, err := os.OpenFile(
+				path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			if err != nil {
+				return "", err
+			}
+			defer f.Close()
+
+			_, err = io.Copy(f, rc)
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+	return path, nil
 }
